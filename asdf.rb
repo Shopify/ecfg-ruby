@@ -1,14 +1,16 @@
 require 'ecfg'
 
 # TODO:
-# * comments after block literals are parsed as part of the block literal.
 # * folded literals aren't folded properly
+# * the rest of the API
 
 input = <<~'EOF'
   ---
   a: |
     asdf
     zzxcv
+
+  # asdf
   h: [3, "zxcv", !!str "asdf", null]
   # Just like with ejson, underscore prefix prevents encryption.
   _b: !!str c
@@ -35,6 +37,7 @@ puts out
 =begin
 ---
 a: "EJ[1:lr1+EQM9Uif9qxar7qu+RVvkIxt65gl7RFfFi3EYVmk=:cMBLAZXrAo0UXHnFHe5dYMfFkGHr9Rne:TYkaLYGOytRNvgWEaSuz7t079oE4DPtNXoH1]"
+# asdf
 h: [3, "EJ[1:lr1+EQM9Uif9qxar7qu+RVvkIxt65gl7RFfFi3EYVmk=:VVznE/DMszclj1b+w3XCpFl1PqGB2RfF:w+ALQj4OdwoqFAoWKTvxnKBTBRY=]", !!str "EJ[1:lr1+EQM9Uif9qxar7qu+RVvkIxt65gl7RFfFi3EYVmk=:chcOxndBdTXx+kH4Xl5re8Utq4iBrJGg:qlfkrvTopVRlZrntB+l5mDZuZnQ=]", null]
 # Just like with ejson, underscore prefix prevents encryption.
 _b: !!str c

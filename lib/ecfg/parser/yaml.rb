@@ -67,6 +67,12 @@ module Ecfg
       # literal, and we should auto-detect based on the following line.
       AUTO_DETECT = :auto_detect
 
+      # We have to do some fairly crazy gymnastics to make (folded) literals
+      # parse correctly, and the logic is nearly identical for the two
+      # varieties, so we parameterized that rule instead of copying it.
+      LITERAL = :literal
+      FOLDED  = :folded
+
       class BlockHeader
         T_VALUES = {
           '-' => STRIP,
@@ -1015,13 +1021,19 @@ module Ecfg
       }
 
       # [167] l-strip-empty(n) ::= ( s-indent-le(n) b-non-content )* l-trail-comments(n)?
+      # NB. l-trail-comments was elevated to c-l+literal and c-l+folded to
+      # prevent capture as part of the literal
       rule(:l_strip_empty) { |n|
-        (s_indent_le(n) >> b_non_content).maybe >> l_trail_comments(n).maybe
+        # (s_indent_le(n) >> b_non_content).maybe >> l_trail_comments(n).maybe
+        (s_indent_le(n) >> b_non_content).maybe
       }
 
       # [168] l-keep-empty(n) ::= l-empty(n,block-in)* l-trail-comments(n)?
+      # NB. l-trail-comments was elevated to c-l+literal and c-l+folded to
+      # prevent capture as part of the literal
       rule(:l_keep_empty) { |n|
-        l_empty(n, BLOCK_IN).repeat(0) >> l_trail_comments(n).maybe
+        # l_empty(n, BLOCK_IN).repeat(0) >> l_trail_comments(n).maybe
+        l_empty(n, BLOCK_IN).repeat(0)
       }
 
       # [169] l-trail-comments(n) ::= s-indent-lt(n) c-nb-comment-text b-comment
@@ -1031,29 +1043,45 @@ module Ecfg
       }
 
       # [170] c-l+literal(n) ::= "|" c-b-block-header(m,t) l-literal-content(n+m,t)
-      rule(:c_l_literal) { |n|
-        (
-          str('|') >>
-          BlockHeaders.reduce(nil) do |acc, bh|
-            header = (
-              (str(bh.t_s) >> str(bh.m_s)) | 
-              (str(bh.m_s) >> str(bh.t_s))
-            )
-            content = case bh.m
-            when AUTO_DETECT
-              s_space.repeat(0).capture(:n_plus_m).present? >>
-              dynamic { |_, context|
-                indent = context.captures[:n_plus_m].length
-                l_literal_content(indent, bh.t)
-              }
-            else
-              l_literal_content(n + bh.m, bh.t)
-            end
+      # [174] c-l+folded(n) ::= ">" c-b-block-header(m,t)
+      #                         l-folded-content(n+m,t)
+      rule(:c_l_literal_folded) { |n, variety|
+        content_rule, sentinel, node_type = case variety
+        when LITERAL
+          [:l_literal_content, '|', NodeType::BLOCK_LITERAL]
+        when FOLDED
+          [:l_folded_content, '>', NodeType::BLOCK_FOLDED]
+        else
+          raise "unexpected variety: #{variety}"
+        end
 
-            full = header >> s_b_comment >> content
-            acc.nil? ? full : (acc | full)
+        BlockHeaders.reduce(nil) do |acc, bh|
+          header = (
+            (str(bh.t_s) >> str(bh.m_s)) |
+            (str(bh.m_s) >> str(bh.t_s))
+          )
+          content = nil
+          trailing_comments = nil
+          if bh.m == AUTO_DETECT
+            content = s_space.repeat(0).capture(:n_plus_m).present? >>
+            dynamic { |_, context|
+              indent = context.captures[:n_plus_m].length
+              send(content_rule, indent, bh.t)
+            }
+            trailing_comments = dynamic { |_, context|
+              indent = context.captures[:n_plus_m].length
+              l_trail_comments(indent).maybe
+            }
+          else
+            content = send(content_rule, n + bh.m, bh.t)
+            trailing_comments = l_trail_comments(n + bh.m).maybe
           end
-        ).as(NodeType::BLOCK_LITERAL)
+
+          to_capture = str(sentinel) >> header >> s_b_comment >> content
+          full = to_capture.as(node_type) >> trailing_comments
+
+          acc.nil? ? full : (acc | full)
+        end
       }
 
       # [171] l-nb-literal-text(n) ::= l-empty(n,block-in)*
@@ -1074,33 +1102,6 @@ module Ecfg
       rule(:l_literal_content) { |n, t|
         (l_nb_literal_text(n) >> b_nb_literal_next(n).repeat(0) >> b_chomped_last(t)).maybe >>
         l_chomped_empty(n, t)
-      }
-
-      # [174] c-l+folded(n) ::= ">" c-b-block-header(m,t)
-      #                         l-folded-content(n+m,t)
-      rule(:c_l_folded) { |n|
-        (
-          str('>') >>
-          BlockHeaders.reduce(nil) do |acc, bh|
-            header = (
-              (str(bh.t_s) >> str(bh.m_s)) | 
-              (str(bh.m_s) >> str(bh.t_s))
-            )
-            content = case bh.m
-            when AUTO_DETECT
-              s_space.repeat(0).capture(:n_plus_m).present? >>
-              dynamic { |_, context|
-                indent = context.captures[:n_plus_m].length
-                l_folded_content(indent, bh.t)
-              }
-            else
-              l_folded_content(n + bh.m, bh.t)
-            end
-
-            full = header >> s_b_comment >> content
-            acc.nil? ? full : (acc | full)
-          end
-        ).as(NodeType::BLOCK_FOLDED)
       }
 
       # [175] s-nb-folded-text(n) ::= s-indent(n) ns-char nb-char*
@@ -1289,7 +1290,7 @@ module Ecfg
       rule(:s_l_block_scalar) { |n, c|
         s_separate(n + 1, c) >>
         (c_ns_properties(n + 1, c) >> s_separate(n + 1, c)).maybe >>
-        (c_l_literal(n) | c_l_folded(n))
+        (c_l_literal_folded(n, LITERAL) | c_l_literal_folded(n, FOLDED))
       }
 
       # [200] s-l+block-collection(n,c) ::= ( s-separate(n+1,c) c-ns-properties(n+1,c) )?

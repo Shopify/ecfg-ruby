@@ -5,7 +5,7 @@ module Ecfg
         attr_reader :pairs
 
         def initialize(pairs)
-          @pairs = pairs
+          @pairs = Array(pairs)
         end
 
         def visit(sc, suppress_transform = false)
@@ -18,7 +18,7 @@ module Ecfg
         attr_reader :items
 
         def initialize(items)
-          @items = items
+          @items = Array(items)
         end
 
         def visit(sc, suppress_transform = false)
