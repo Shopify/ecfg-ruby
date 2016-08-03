@@ -1,3 +1,5 @@
+require 'rbnacl/libsodium'
+
 module Ecfg
   module Crypto
     module Util
@@ -9,6 +11,13 @@ module Ecfg
           .each_slice(2)                     # [%w(1 2), %w(3 4), %w(b e), %w(e f)]
           .map { |a, b| "#{a}#{b}".hex.chr } # ["\x12", "\x34", "\xBE", "\xEF"]
           .join                              # "\x12\x34\xBE\xEF"
+      end
+
+      def self.raw_to_base16(raw)
+        raw                       # "\x12\x34\xBE\xEF"
+          .bytes                  # [18, 52, 190, 239]
+          .map { |b| b.to_s(16) } # ["12", "34", "be", "ef"]
+          .join                   # "1234beef"
       end
     end
   end
