@@ -25,13 +25,13 @@ input = <<~'EOF'
   d:
 EOF
 
-encrypter   = Ecfg::Encrypter.new("6ea8ba92a66f795c17f9ba4dd3d3f445c1e4b9c34728b17aea370479eff1246d")
+encrypter   = Ecfg::Crypto::Encrypter.new("6ea8ba92a66f795c17f9ba4dd3d3f445c1e4b9c34728b17aea370479eff1246d")
 parser      = Ecfg::Parser::YAML.new
 transformer = Ecfg::Transformer.new
 
 out = transformer.transform(input, parser, &encrypter)
 
-decrypter   = Ecfg::Decrypter.new("b07b4ff938bd5abed0dea6fa717b4942c4782a9ba71264468fce5094a1e0c397")
+decrypter   = Ecfg::Crypto::Decrypter.new("b07b4ff938bd5abed0dea6fa717b4942c4782a9ba71264468fce5094a1e0c397")
 parser      = Ecfg::Parser::YAML.new
 transformer = Ecfg::Transformer.new
 
