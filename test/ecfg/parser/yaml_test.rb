@@ -26,7 +26,7 @@ module Ecfg
             {
               pair: {
                 key: {plain_scalar: 'c@9'},
-                value: {single_quoted: 'd@13'}
+                value: {single_quoted: "'d'@12"}
               }
             },
             {
