@@ -2,24 +2,43 @@ require 'base64'
 require 'rbnacl/libsodium'
 
 module Ecfg
-  class Encrypter
+  class Decrypter
+    MESSAGE_PATTERN = /EJ\[1:(.*?):(.*?):(.*?)\]/
+
+    InvalidMessageFormat = Class.new(StandardError)
+
     def to_proc
-      proc { |str| encrypt(str) }
+      proc { |str| decrypt(str) }
     end
 
-    def initialize(peer_public)
-      # rbnacl takes keys in binary format, whereas our keys are embedded in
-      # ecfg files in base16.
-      peer_public = peer_public           # "1234beef"
+    def initialize(target_private)
+      # rbnacl takes keys in binary format, whereas our keys are provided to
+      # the user in base16.
+      @target_private = target_private     # "1234beef"
         .each_char                         # %w(1 2 3 4 b e e f)
         .each_slice(2)                     # [%w(1 2), %w(3 4), %w(b e), %w(e f)]
         .map { |a, b| "#{a}#{b}".hex.chr } # ["\x12", "\x34", "\xBE", "\xEF"]
         .join                              # "\x12\x34\xBE\xEF"
 
-      ephemeral_private = RbNaCl::PrivateKey.generate
-      @ephemeral_public  = ephemeral_private.public_key
+    end
 
-      @box = RbNaCl::Box.new(peer_public, ephemeral_private)
+    def decrypt(boxed_message)
+      encrypter_public, nonce, ciphertext = load_message(boxed_message)
+
+      box = RbNaCl::Box.new(encrypter_public, @target_private)
+      box.decrypt(nonce, ciphertext)
+    end
+
+    def load_message(boxed_message)
+      md = boxed_message.match(MESSAGE_PATTERN)
+      unless md
+        raise InvalidMessageFormat, "message has invalid format: #{boxed_message}"
+      end
+      [
+        Base64.decode64(md[1]),
+        Base64.decode64(md[2]),
+        Base64.decode64(md[3])
+      ]
     end
 
     def encrypt(plaintext)
@@ -27,8 +46,6 @@ module Ecfg
       ciphertext = @box.encrypt(nonce, plaintext)
       format_message(@ephemeral_public, nonce, ciphertext)
     end
-
-    private
 
     def format_message(ephemeral_public, nonce, ciphertext)
       v = 1

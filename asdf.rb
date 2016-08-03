@@ -31,7 +31,13 @@ transformer = Ecfg::Transformer.new
 
 out = transformer.transform(input, parser, &encrypter)
 
-puts out
+decrypter   = Ecfg::Decrypter.new("b07b4ff938bd5abed0dea6fa717b4942c4782a9ba71264468fce5094a1e0c397")
+parser      = Ecfg::Parser::YAML.new
+transformer = Ecfg::Transformer.new
+
+re_out = transformer.transform(out, parser, &decrypter)
+
+puts re_out
 
 # Looks like:
 =begin
