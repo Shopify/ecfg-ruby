@@ -3,10 +3,19 @@ require 'ecfg/transformer/nodes'
 
 module Ecfg
   class Transformer
+    # Load an AST from the YAML, JSON, or TOML parser to a form we can interact
+    # with more easily. This transforms a bunch of nested hashes into an
+    # Ecfg::Transformer::Nodes::* object, which we later call visit() on to
+    # collect a list of encryptable strings in the document.
     class ASTTransform < Parslet::Transform
-
       # These are borrowed from RbYAML:
       # https://github.com/opsb/rbyaml/blob/master/lib/rbyaml/resolver.rb
+      #
+      # Since yaml support unquoted strings, we have to do a bunch of checks to
+      # determine what type an unquoted value actually represents.
+      #
+      # Nothing that is determined to be any of these types will be considered
+      # eligible for encryption.
       NON_STRING_PLAIN = {
         bool:      /^(?:yes|Yes|YES|no|No|NO|true|True|TRUE|false|False|FALSE|on|On|ON|off|Off|OFF)$/,
         float:     /^(?:[-+]?(?:[0-9][0-9_]*)\.[0-9_]*(?:[eE][-+][0-9]+)?|[-+]?(?:[0-9][0-9_]*)?\.[0-9_]+(?:[eE][-+][0-9]+)?|[-+]?[0-9][0-9_]*(?::[0-5]?[0-9])+\.[0-9_]*|[-+]?\.(?:inf|Inf|INF)|\.(?:nan|NaN|NAN))$/,
@@ -27,23 +36,33 @@ module Ecfg
         end
       end
 
+      def self.scalar_or_ignore(typ, text)
+        if non_string_plain?(typ, text)
+          Nodes::Ignore.new
+        else
+          Nodes::SCALAR_CLASS[typ].new(text)
+        end
+      end
+
+      # Various types of scalar nodes parse to various types, but they're all
+      # terminal nodes (i.e. scalar); see ./nodes.rb for more detail.
       Ecfg::Parser::NodeType::SCALAR_TYPES.each do |typ|
-        rule(typ => simple(:text), ignore: subtree(:ignore)) {
-          if ASTTransform.non_string_plain?(typ, text)
-            Nodes::Ignore.new
-          else
-            Nodes::SCALAR_CLASS[typ].new(text)
-          end
-        }
         rule(typ => simple(:text)) {
-          if ASTTransform.non_string_plain?(typ, text)
-            Nodes::Ignore.new
-          else
-            Nodes::SCALAR_CLASS[typ].new(text)
-          end
+          ASTTransform.scalar_or_ignore(typ, text)
+        }
+        rule(typ => simple(:text), ignore: subtree(:ignore)) {
+          ASTTransform.scalar_or_ignore(typ, text)
         }
       end
 
+      # hashes are generally parsed to:
+      # {map: [{pair: ...}, {pair: ...}]}
+      rule(map: subtree(:pairs))  { Nodes::Map.new(pairs) }
+      # {seq: [{...}, ...]}
+      rule(seq: subtree(:items))  { Nodes::Seq.new(items) }
+
+      # pairs look like:
+      # {pair: {key: ..., value: ...}}
       rule(pair: subtree(:kv)) {
         Nodes::Pair.new(
           kv.detect { |k, _| k == :key }[1],
@@ -51,9 +70,7 @@ module Ecfg
         )
       }
 
-      rule(seq: subtree(:items))  { Nodes::Seq.new(items) }
-      rule(map: subtree(:pairs))  { Nodes::Map.new(pairs) }
-
+      # ignore and empty both indicate irrelevant subtrees that we can prune.
       rule(ignore: simple(:text)) { Nodes::Ignore.new }
       rule(empty: simple(:text))  { Nodes::Ignore.new }
     end
