@@ -1,6 +1,7 @@
-require 'minitest/autorun'
-
+$LOAD_PATH.unshift File.expand_path('../../lib', __FILE__)
 require 'ecfg'
+
+require 'minitest/autorun'
 
 module Helpers
   module AST

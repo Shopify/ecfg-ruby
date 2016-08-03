@@ -1,3 +1,10 @@
+PATH
+  remote: .
+  specs:
+    ecfg (0.1.0)
+      parslet (~> 1.7.1)
+      rbnacl-libsodium (~> 1.0.10)
+
 GEM
   remote: https://rubygems.org/
   specs:
@@ -18,11 +25,10 @@ PLATFORMS
   ruby
 
 DEPENDENCIES
-  minitest (>= 5.0.0)
-  mocha
-  parslet (~> 1.7.1)
-  rbnacl
-  rbnacl-libsodium
+  bundler (~> 1.12)
+  ecfg!
+  minitest (~> 5.0)
+  mocha (~> 1.1.0)
 
 BUNDLED WITH
    1.12.5
