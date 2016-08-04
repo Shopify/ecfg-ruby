@@ -1,7 +1,7 @@
 # Ecfg for Ruby *(WIP)*
 
-This will be an alternate implementation of the to-be-specified ecfg spec (the
-only other implementation current being https://github.com/Shopify/ecfg)
+This is an alternate implementation of the [`ecfg(5)`
+spec](https://shopify.github.io/ecfg/ecfg.5.html)
 
 **Don't use this yet.**
 
