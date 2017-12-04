@@ -4,7 +4,3 @@ up:
 
 commands:
   test: bin/testunit
-
-packages:
-  - git@github.com:Shopify/dev-shopify.git
-
